@@ -48,7 +48,8 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
       return res.status(400).json({ error: `Parser for ${bank} not found` });
     }
 
-    const python = spawn('python', [parserPath, pdfPath]);
+    const pythonCmd = process.platform === 'win32' ? 'py' : 'python';
+    const python = spawn(pythonCmd, [parserPath, pdfPath]);
     let output = '';
     let error = '';
 
@@ -74,13 +75,19 @@ app.post('/api/upload', upload.single('pdf'), async (req, res) => {
         // Insert transactions into database
         const insertedTransactions = [];
         for (const txn of transactions) {
+          // Mapping kontrolü
+          const mapping = await prisma.merchantMapping.findUnique({
+            where: { description: txn.aciklama }
+          });
+
           const expense = await prisma.expense.create({
             data: {
               date: txn.tarih,
               description: txn.aciklama,
               amount: txn.tutar,
               bank: bank,
-              month: parseMonth(txn.tarih)
+              month: parseMonth(txn.tarih),
+              categoryId: mapping ? mapping.categoryId : null
             }
           });
           insertedTransactions.push(expense);
@@ -159,6 +166,56 @@ app.get('/api/summary/month/:month', async (req, res) => {
   }
 });
 
+// Get yearly summary (all time)
+app.get('/api/summary/yearly', async (req, res) => {
+  try {
+    const expenses = await prisma.expense.findMany({
+      include: { category: true }
+    });
+
+    // Group by year and category
+    const yearlyData = expenses.reduce((acc, expense) => {
+      const year = expense.date.split('/')[2]; // DD/MM/YYYY -> YYYY
+      const categoryName = expense.category?.name || 'Kategorisiz';
+      
+      if (!acc[year]) {
+        acc[year] = {};
+      }
+      if (!acc[year][categoryName]) {
+        acc[year][categoryName] = { total: 0, count: 0, color: expense.category?.color };
+      }
+      acc[year][categoryName].total += expense.amount;
+      acc[year][categoryName].count += 1;
+      return acc;
+    }, {});
+
+    // Calculate grand totals
+    const grandTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    const totalTransactions = expenses.length;
+    
+    // Category totals across all years
+    const categoryTotals = expenses.reduce((acc, expense) => {
+      const categoryName = expense.category?.name || 'Kategorisiz';
+      if (!acc[categoryName]) {
+        acc[categoryName] = { total: 0, count: 0, color: expense.category?.color };
+      }
+      acc[categoryName].total += expense.amount;
+      acc[categoryName].count += 1;
+      return acc;
+    }, {});
+
+    res.json({
+      yearlyData,
+      grandTotal,
+      totalTransactions,
+      categoryTotals,
+      availableYears: Object.keys(yearlyData).sort()
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch yearly summary' });
+  }
+});
+
 // Categories CRUD
 app.get('/api/categories', async (req, res) => {
   try {
@@ -194,6 +251,15 @@ app.put('/api/expenses/:id/category', async (req, res) => {
       data: { categoryId: categoryId ? parseInt(categoryId) : null },
       include: { category: true }
     });
+
+    // Mapping tablosunu güncelle / oluştur
+    if (expense.description && expense.categoryId) {
+      await prisma.merchantMapping.upsert({
+        where: { description: expense.description },
+        update: { categoryId: expense.categoryId },
+        create: { description: expense.description, categoryId: expense.categoryId }
+      });
+    }
     
     res.json(expense);
   } catch (error) {

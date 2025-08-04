@@ -12,7 +12,8 @@
       "Bash(py plumber.py:*)",
       "Bash(find:*)",
       "Bash(py:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

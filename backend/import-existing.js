@@ -47,13 +47,19 @@ async function importExistingData() {
           });
 
           if (!existing) {
+            // Mapping kontrolü
+            const mapping = await prisma.merchantMapping.findUnique({
+              where: { description: txn.aciklama }
+            });
+
             await prisma.expense.create({
               data: {
                 date: txn.tarih,
                 description: txn.aciklama,
                 amount: txn.tutar,
                 bank: 'isbank',
-                month: parseMonth(txn.tarih)
+                month: parseMonth(txn.tarih),
+                categoryId: mapping ? mapping.categoryId : null
               }
             });
             importedCount++;

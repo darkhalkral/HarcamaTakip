@@ -30,6 +30,10 @@ export class ExpenseService {
     return this.http.get<MonthlySummary>(`${this.apiUrl}/summary/month/${month}`);
   }
 
+  getYearlySummary(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/summary/yearly`);
+  }
+
   getCategories(): Observable<Category[]> {
     return this.http.get<Category[]>(`${this.apiUrl}/categories`);
   }

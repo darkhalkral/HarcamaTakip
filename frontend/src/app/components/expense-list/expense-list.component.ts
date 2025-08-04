@@ -13,11 +13,34 @@ import { Expense, Category } from '../../models/expense.model';
       <h2>Harcamalar</h2>
       
       <div class="filters">
-        <label for="monthFilter">Ay Filtresi:</label>
-        <select id="monthFilter" [(ngModel)]="selectedMonth" (change)="onMonthChange()" class="form-control">
-          <option value="">Tüm aylar</option>
-          <option *ngFor="let month of availableMonths" [value]="month">{{ formatMonth(month) }}</option>
-        </select>
+        <div class="filter-group">
+          <label for="monthFilter">Ay Filtresi:</label>
+          <select id="monthFilter" [(ngModel)]="selectedMonth" (change)="onMonthChange()" class="form-control">
+            <option value="">Tüm aylar</option>
+            <option *ngFor="let month of availableMonths" [value]="month">{{ formatMonth(month) }}</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="categoryFilter">Kategori Filtresi:</label>
+          <select id="categoryFilter" [(ngModel)]="selectedCategoryFilter" (change)="onCategoryFilterChange()" class="form-control">
+            <option value="">Tüm kategoriler</option>
+            <option value="categorized">Kategorili işlemler</option>
+            <option value="uncategorized">Kategorisiz işlemler</option>
+            <option *ngFor="let category of categories" [value]="category.id">{{ category.name }}</option>
+          </select>
+        </div>
+        
+        <div class="stats">
+          <span class="stat-item categorized">
+            <span class="stat-dot categorized"></span>
+            Kategorili: {{ getCategorizedCount() }}
+          </span>
+          <span class="stat-item uncategorized">
+            <span class="stat-dot uncategorized"></span>
+            Kategorisiz: {{ getUncategorizedCount() }}
+          </span>
+        </div>
       </div>
 
       <div *ngIf="expenses.length === 0" class="no-data">
@@ -25,11 +48,17 @@ import { Expense, Category } from '../../models/expense.model';
       </div>
 
       <div *ngIf="expenses.length > 0" class="expenses-grid">
-        <div *ngFor="let expense of expenses" class="expense-card">
+        <div *ngFor="let expense of expenses" 
+             class="expense-card" 
+             [class.categorized]="expense.categoryId" 
+             [class.uncategorized]="!expense.categoryId">
           <div class="expense-header">
             <span class="date">{{ expense.date }}</span>
             <span class="amount" [class.negative]="expense.amount < 0">
               {{ expense.amount | currency:'TRY':'symbol':'1.2-2' }}
+            </span>
+            <span class="category-status" [class.has-category]="expense.categoryId">
+              {{ expense.categoryId ? '✅' : '⚠️' }}
             </span>
           </div>
           
@@ -71,10 +100,62 @@ import { Expense, Category } from '../../models/expense.model';
     }
 
     .filters {
-      margin-bottom: 20px;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    }
+
+    .filter-group {
       display: flex;
-      gap: 10px;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .filter-group label {
+      font-weight: 600;
+      color: #495057;
+      font-size: 14px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 20px;
       align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .stat-item.categorized {
+      color: #28a745;
+    }
+
+    .stat-item.uncategorized {
+      color: #dc3545;
+    }
+
+    .stat-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .stat-dot.categorized {
+      background: linear-gradient(135deg, #28a745, #20c997);
+    }
+
+    .stat-dot.uncategorized {
+      background: linear-gradient(135deg, #dc3545, #fd7e14);
     }
 
     .form-control {
@@ -109,6 +190,25 @@ import { Expense, Category } from '../../models/expense.model';
       overflow: hidden;
     }
 
+    .expense-card.categorized {
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      border-left: 4px solid #28a745;
+      box-shadow: 0 8px 32px rgba(40, 167, 69, 0.15);
+    }
+
+    .expense-card.uncategorized {
+      background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+      border-left: 4px solid #dc3545;
+      box-shadow: 0 8px 32px rgba(220, 53, 69, 0.15);
+      animation: pulse-warning 2s infinite;
+    }
+
+    @keyframes pulse-warning {
+      0% { box-shadow: 0 8px 32px rgba(220, 53, 69, 0.15); }
+      50% { box-shadow: 0 8px 32px rgba(220, 53, 69, 0.25); }
+      100% { box-shadow: 0 8px 32px rgba(220, 53, 69, 0.15); }
+    }
+
     .expense-card::before {
       content: '';
       position: absolute;
@@ -135,6 +235,15 @@ import { Expense, Category } from '../../models/expense.model';
       justify-content: space-between;
       align-items: center;
       margin-bottom: 12px;
+    }
+
+    .category-status {
+      font-size: 18px;
+      margin-left: 8px;
+    }
+
+    .category-status.has-category {
+      filter: drop-shadow(0 2px 4px rgba(40, 167, 69, 0.3));
     }
 
     .date {
@@ -251,8 +360,10 @@ import { Expense, Category } from '../../models/expense.model';
 })
 export class ExpenseListComponent implements OnInit {
   expenses: Expense[] = [];
+  allExpenses: Expense[] = []; // Tüm expenses'i sakla
   categories: Category[] = [];
   selectedMonth: string = '';
+  selectedCategoryFilter: string = '';
   availableMonths: string[] = [];
 
   constructor(private expenseService: ExpenseService) {}
@@ -276,6 +387,7 @@ export class ExpenseListComponent implements OnInit {
   loadExpenses() {
     this.expenseService.getExpenses().subscribe({
       next: (expenses) => {
+        this.allExpenses = expenses;
         this.expenses = expenses;
         this.extractAvailableMonths();
       },
@@ -286,18 +398,35 @@ export class ExpenseListComponent implements OnInit {
   }
 
   onMonthChange() {
+    this.applyFilters();
+  }
+
+  onCategoryFilterChange() {
+    this.applyFilters();
+  }
+
+  applyFilters() {
+    let filteredExpenses = [...this.allExpenses];
+
+    // Ay filtresi
     if (this.selectedMonth) {
-      this.expenseService.getExpensesByMonth(this.selectedMonth).subscribe({
-        next: (expenses) => {
-          this.expenses = expenses;
-        },
-        error: (error) => {
-          console.error('Failed to load monthly expenses:', error);
-        }
-      });
-    } else {
-      this.loadExpenses();
+      filteredExpenses = filteredExpenses.filter(expense => expense.month === this.selectedMonth);
     }
+
+    // Kategori filtresi
+    if (this.selectedCategoryFilter) {
+      if (this.selectedCategoryFilter === 'categorized') {
+        filteredExpenses = filteredExpenses.filter(expense => expense.categoryId !== null);
+      } else if (this.selectedCategoryFilter === 'uncategorized') {
+        filteredExpenses = filteredExpenses.filter(expense => expense.categoryId === null);
+      } else {
+        // Specific category ID
+        const categoryId = parseInt(this.selectedCategoryFilter);
+        filteredExpenses = filteredExpenses.filter(expense => expense.categoryId === categoryId);
+      }
+    }
+
+    this.expenses = filteredExpenses;
   }
 
   updateCategory(expense: Expense) {
@@ -347,8 +476,16 @@ export class ExpenseListComponent implements OnInit {
     }
   }
 
+  getCategorizedCount(): number {
+    return this.expenses.filter(expense => expense.categoryId !== null).length;
+  }
+
+  getUncategorizedCount(): number {
+    return this.expenses.filter(expense => expense.categoryId === null).length;
+  }
+
   private extractAvailableMonths() {
-    const months = [...new Set(this.expenses.map(expense => expense.month))];
+    const months = [...new Set(this.allExpenses.map(expense => expense.month))];
     this.availableMonths = months.sort().reverse();
   }
 }

@@ -8,6 +8,7 @@ TAKSIT_RE= re.compile(r'(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})\s+\d+/\d+taksidi')
 TRIM_KEYS   = ['MAXIPUAN', 'MAXİPUAN', 'MAXIPUANILAVE', 'PUANYÜKLEME',
                'PUANGERİALIM', 'KAZANILAN']
 LIMIT_WORDS = ['Müşteri', 'TOPLAM', 'Limit', 'BORÇTOPLAMI']
+BANK_TAIL_WORDS = ['İŞ BANKASI', 'IS BANKASI', 'İŞBANKASI', 'T. İŞ BANKASI']
 
 # ────────────────────────────  YARDIMCI FONKSİYONLAR ────────────────────────── #
 def parse_number(s: str) -> float:
@@ -86,7 +87,12 @@ def extract_txn(line):
                 break
         if too_close:
             continue
-        valid.append((v, n))
+            
+        # Sadece genel büyük tutarları filtrele
+        is_suspicious = abs(v) > 50000  # 50K üzeri kesinlikle limit/toplam
+        
+        if not is_suspicious:
+            valid.append((v, n))
 
     if not valid:
         return None
@@ -95,16 +101,38 @@ def extract_txn(line):
     is_mp = any(k in rest for k in TRIM_KEYS)
 
     if is_mp:
-        # 1 TL altındaki tutarları (0,02) ele
-        real = [(v, n) for v, n in valid if abs(v) >= 1.0]
-        if not real:          # sadece puan varsa kaydetme
+        # MaxiPuan satırlarında format: MERCHANT+MAXIPUAN:puan gerçek_tutar puan
+        # İlk tutar genellikle puan (küçük), ikinci tutar gerçek işlem tutarı
+        if len(valid) >= 2:
+            # İkinci tutarı (gerçek işlem) seç
+            tutar, num_str = valid[1]
+        elif len(valid) == 1:
+            # Tek tutar varsa ve >= 1 TL ise gerçek tutar olabilir
+            if abs(valid[0][0]) >= 1.0:
+                tutar, num_str = valid[0]
+            else:
+                # Sadece puan tutarı varsa işlemi atla
+                return None
+        else:
             return None
-        tutar, num_str = max(real, key=lambda x: abs(x[0]))
         cut_pos        = min((rest.find(k) for k in TRIM_KEYS if k in rest))
         aciklama       = rest[:cut_pos].strip()
     else:
         tutar, num_str = valid[0]
-        aciklama       = rest[:rest.find(num_str)].strip()
+        pos = rest.find(num_str)
+        pre  = rest[:pos].strip()
+        post = rest[pos + len(num_str):].strip()
+        # Eğer başta para birimi (TRY, TL, USD) gibi kısa bir önek varsa açıklama olarak numaradan SONRAKİ kısmı al.
+        if not pre or pre.upper() in ("TRY", "TL", "USD") or len(pre) < 4:
+            aciklama = post
+        else:
+            aciklama = pre
+
+    # Banka adı sondaysa temizle
+    for tail in BANK_TAIL_WORDS:
+        if aciklama.upper().endswith(tail):
+            aciklama = aciklama[: -len(tail)].strip()
+            break
 
     return {"tarih": tarih, "aciklama": aciklama, "tutar": tutar, "kategori": ""}
 

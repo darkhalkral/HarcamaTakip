@@ -12,6 +12,7 @@ model Category {
   name     String    @unique
   color    String?
   expenses Expense[]
+  merchantMappings MerchantMapping[]
   
   @@map("categories")
 }
@@ -28,4 +29,13 @@ model Expense {
   createdAt   DateTime  @default(now())
   
   @@map("expenses")
+}
+
+model MerchantMapping {
+  id          Int      @id @default(autoincrement())
+  description String   @unique
+  categoryId  Int
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  @@map("merchant_mappings")
 }
