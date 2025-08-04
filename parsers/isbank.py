@@ -7,6 +7,8 @@ SPACE_DASH_FIX = re.compile(r'-\s+(\d)')
 TAKSIT_RE = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})\s+\d+/\d+taksidi')
 # Çok büyük limit değerleri (müşteri limiti vb)
 LIMIT_KEYWORDS = ['MüşteriLimiti', 'TOPLAM', 'BORÇTOPLAMI', 'Limit']
+# Filtrelenecek puan işlemleri
+SKIP_KEYWORDS = ['KAZANILANMAXIPUAN', 'MAXIPUAN', 'PUANYÜKLEME', 'PUANGERİALIM']
 
 def collapse_lines(lines):
     """Aynı işleme ait birden çok satırı birleştirir."""
@@ -31,6 +33,13 @@ def extract_txn(line):
     if not m:
         return None
     tarih, rest = m.groups()
+    
+    # MaxiPuan içeren satırlarda akıllı tutar seçimi
+    has_maxipuan = False
+    for skip_keyword in SKIP_KEYWORDS:
+        if skip_keyword in rest:
+            has_maxipuan = True
+            break
     
     # Önce taksit bilgisi var mı kontrol et
     taksit_match = TAKSIT_RE.search(rest)
@@ -70,9 +79,23 @@ def extract_txn(line):
         if not values:
             return None
         
-        # İlk geçerli tutarı tercih et (genellikle işlem tutarıdır)
-        tutar = values[0]
-        tutar_str = valid_nums[0]
+        # MaxiPuan işlemlerinde akıllı tutar seçimi
+        if has_maxipuan:
+            # 1 TL ve üzeri tutarları al (gerçek işlem tutarları)
+            real_values = [v for v in values if abs(v) >= 1.0]
+            if real_values:
+                # En büyük gerçek tutarı seç
+                max_val = max(real_values, key=abs)
+                max_idx = values.index(max_val)
+                tutar = max_val
+                tutar_str = valid_nums[max_idx]
+            else:
+                # Hiç gerçek tutar yoksa (sadece puan varsa) işlemi atla
+                return None
+        else:
+            # Normal işlemlerde ilk geçerli tutarı tercih et
+            tutar = values[0]
+            tutar_str = valid_nums[0]
         
         # Açıklama = tutarın geçtiği ilk konuma kadar olan kısım
         desc_end = rest.find(tutar_str)
@@ -81,6 +104,14 @@ def extract_txn(line):
     # Açıklamayı temizle - gereksiz bilgileri kırp
     if '***' in aciklama:
         aciklama = aciklama.split('***')[0].strip()
+    
+    # MaxiPuan suffix'lerini temizle
+    if has_maxipuan:
+        for skip_keyword in SKIP_KEYWORDS:
+            if skip_keyword in aciklama:
+                # KAZANILANMAXIPUAN gibi suffix'leri kaldır
+                aciklama = aciklama.replace(skip_keyword, '').strip()
+                aciklama = aciklama.rstrip(':').strip()  # Sondaki ':' karakterini de kaldır
     
     return {
         "tarih": tarih,

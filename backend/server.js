@@ -201,6 +201,21 @@ app.put('/api/expenses/:id/category', async (req, res) => {
   }
 });
 
+// Delete expense
+app.delete('/api/expenses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await prisma.expense.delete({
+      where: { id: parseInt(id) }
+    });
+    
+    res.json({ success: true, message: 'Expense deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete expense' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -10,7 +10,9 @@
       "Bash(python:*)",
       "Bash(/c/Users/halid/AppData/Local/Microsoft/WindowsApps/python plumber.py)",
       "Bash(py plumber.py:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(py:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
