@@ -2,7 +2,7 @@ import pdfplumber
 import re
 
 def analyze_pdf_structure():
-    pdf_path = "pdfPlumber/Nisan Hesap Özeti 04_2024.pdf"
+    pdf_path = "pdfPlumber/Mayıs Hesap Özeti 05_2024.pdf"
     
     print("=== PDF İçerik Analizi ===")
     
