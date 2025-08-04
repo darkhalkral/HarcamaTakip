@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  color    String?
+  expenses Expense[]
+  
+  @@map("categories")
+}
+
+model Expense {
+  id          Int       @id @default(autoincrement())
+  date        String    // DD/MM/YYYY format
+  description String
+  amount      Float
+  bank        String    // "isbank", "garanti", etc.
+  month       String    // "2025-01" format for easy grouping
+  categoryId  Int?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime  @default(now())
+  
+  @@map("expenses")
+}
